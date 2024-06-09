@@ -8,7 +8,6 @@ import math
 
 # Make sure to keep the pretrained weights; otherwise, LoraDora should decrease parameters
 
-
 '''
 Lora-fied version of BertSelfAttention
 '''

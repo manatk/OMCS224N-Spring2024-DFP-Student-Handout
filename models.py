@@ -241,7 +241,6 @@ class MultitaskBERT(nn.Module):
         loss = F.cross_entropy(similarities, labels, reduction ='sum')
         return loss
     
-
     #Cosine similarity loss function for similarity task.
 
     def cos_sim_loss(self, sts_ids_1, sts_ids_2, sts_mask_1, sts_mask_2, sts_labels):

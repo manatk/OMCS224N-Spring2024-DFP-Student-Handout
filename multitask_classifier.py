@@ -45,40 +45,6 @@ from evaluation import model_eval_sst, model_eval_multitask, model_eval_test_mul
 BERT_HIDDEN_SIZE = 768
 FINE_TUNING_DOWNWEIGHT = 1 # downweights cosine similarity and negative ranking loss finetuning
 
-#dimIn = k
-#dimOut = d
-class LoRADoRA(nn.Module):
-    def __init__(self, dimIn, dimOut, rank=4, bias=None, weight=None):
-        super().__init__()
-        device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-        if bias != None:
-            self.bias = nn.Parameter(bias, requires_grad=False).to(device)
-        else:
-            self.bias = nn.zeros(dimOut)
-            self.bias = nn.Parameter(self.bias, requires_grad=False).to(device)
-        if weight != None:
-            self.weight = nn.Parameter(weight, requires_grad=False).to(device)
-        else:
-            self.weight = nn.zeros(dimOut, dimIn)
-            self.weight = nn.Parameter(self.weight, requires_grad=False).to(device)
-        
-        #calculate m vector using description in handout
-        self.mVector = self.weight ** 2
-        self.mVector = torch.sqrt(torch.sum(self.mVector, dim=0)).to(device)
-
-        self.aMatrix = torch.randn(dimOut, rank)
-        stdDev = 1 / torch.sqrt(torch.tensor(rank).float())
-        self.aMatrix = nn.Parameter(self.aMatrix * stdDev).to(device)
-        self.bMatrix = torch.zeros(rank, dimIn) #replace with d and k
-        self.bMatrix = nn.Parameter(self.bMatrix).to(device)
-    def forward(self, x):
-        x = x.to(self.aMatrix.device)
-        #print("FORWARD LORA DORA")
-        loraMatrix = torch.matmul(self.aMatrix, self.bMatrix) + self.weight
-        columnNorm = torch.sqrt(torch.sum(loraMatrix ** 2, dim=0))
-        return F.linear(x, loraMatrix / columnNorm * self.mVector, self.bias)
-
-
 '''
 Returns pearson coefficient loss
 
@@ -90,7 +56,6 @@ def pearson_coefficient_loss(output, target):
     return -1 * torch.dot(vx, vy) * torch.rsqrt(torch.sum(vx ** 2)) * torch.rsqrt(torch.sum(vy ** 2))
 
 TQDM_DISABLE=False
-
 
 # Fix the random seed.
 def seed_everything(seed=11711):
@@ -216,7 +181,6 @@ def train_multitask(args):
               'fine_tune_mode': args.fine_tune_mode}
 
     config = SimpleNamespace(**config)
-
 
     # Set layers for each task
     config.num_sst_layers, config.num_para_layers, config.num_sts_layers = \
@@ -386,17 +350,6 @@ def train_multitask(args):
                 sts_loss.backward()
                 train_loss += sts_loss.item()
                 num_batches += 1
-
-                if args.contrastive_learning == 'y':
-                    emb_1 = model.bert(sts_ids_1, sts_mask_1)['pooler_output']
-                    emb_2 = model.bert(sts_ids_2, sts_mask_2)['pooler_output']
-                    ntxent_loss = model.compute_ntxent_loss(emb_1, emb_2)
-
-                    ntxent_loss.backward()
-                    optimizer.step()
-
-                    train_loss += ntxent_loss.item()
-                    num_batches += 1
                 
                 optimizer.step()
                 if args.vary_lr == 'y': 
@@ -659,15 +612,6 @@ def get_args():
                          type = str,
                          choices=('y','n'),
                          default='n')
-    
-    # 12. contrastive_learning
-    parser.add_argument("--contrastive_learning",
-                         type = str,
-                         choices=('y','n'),
-                         default='y')
-    parser.add_argument("--contrastive_weight",
-                         type = float,
-                         default=0.5)
 
     parser.add_argument("--sst_train", type=str, default="data/ids-sst-train.csv")
     parser.add_argument("--sst_dev", type=str, default="data/ids-sst-dev.csv")
